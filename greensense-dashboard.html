@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GreenSense — Plant Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:#0b1a10; --panel:#111f16; --card:#162318; --border:rgba(74,180,90,.15);
+  --green:#4ab45a; --lime:#9de04a; --accent:#f5a623; --red:#e05252; --blue:#5ab4e0;
+  --text:#dff0d8; --muted:#6a9470; --mono:'DM Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-weight:300;min-height:100vh;}
+.app{display:grid;grid-template-columns:220px 1fr;min-height:100vh;}
+
+/* SIDEBAR */
+.sidebar{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:1.5rem 1rem;gap:.3rem;position:sticky;top:0;height:100vh;}
+.brand{font-family:'Syne',sans-serif;font-weight:800;font-size:1.2rem;color:var(--lime);padding:.5rem .75rem 1.5rem;letter-spacing:-.02em;}
+.brand span{color:var(--accent);}
+.nav-item{display:flex;align-items:center;gap:.75rem;padding:.65rem .75rem;border-radius:8px;cursor:pointer;font-size:.88rem;color:var(--muted);transition:all .15s;border:1px solid transparent;}
+.nav-item:hover{background:rgba(74,180,90,.07);color:var(--text);}
+.nav-item.active{background:rgba(74,180,90,.12);color:var(--lime);border-color:var(--border);}
+.nav-icon{font-size:1rem;width:20px;text-align:center;}
+.sidebar-footer{margin-top:auto;padding-top:1rem;border-top:1px solid var(--border);}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--lime);display:inline-block;animation:blink 2s infinite;margin-right:.5rem;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.status-line{font-size:.72rem;color:var(--muted);display:flex;align-items:center;padding:.4rem .75rem;}
+
+/* MAIN */
+.main{display:flex;flex-direction:column;min-height:100vh;}
+
+/* TOPBAR */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:1.2rem 2rem;border-bottom:1px solid var(--border);background:rgba(11,26,16,.92);backdrop-filter:blur(10px);position:sticky;top:0;z-index:10;}
+.topbar-left h1{font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem;}
+.topbar-left p{font-size:.78rem;color:var(--muted);margin-top:.1rem;font-family:var(--mono);}
+.topbar-right{display:flex;align-items:center;gap:1rem;}
+.badge{background:rgba(74,180,90,.12);border:1px solid var(--border);border-radius:999px;padding:.3rem .9rem;font-size:.75rem;color:var(--lime);font-family:var(--mono);}
+.alert-bell{position:relative;cursor:pointer;font-size:1.1rem;}
+.alert-count{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:.6rem;font-weight:700;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+
+/* PAGES */
+.page{display:none;flex-direction:column;gap:1.5rem;padding:1.5rem 2rem;animation:fadeIn .2s ease;flex:1;}
+.page.active{display:flex;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* PANEL */
+.panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.4rem;}
+.panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;}
+.panel-title{font-family:'Syne',sans-serif;font-weight:700;font-size:.95rem;}
+.panel-sub{font-size:.72rem;color:var(--muted);font-family:var(--mono);}
+
+/* SENSOR CARDS */
+.sensors-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;}
+.sensor-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.4rem;position:relative;overflow:hidden;transition:border-color .2s;}
+.sensor-card:hover{border-color:rgba(74,180,90,.4);}
+.sensor-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--c,var(--green));opacity:.6;}
+.sc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;}
+.sc-icon{font-size:1.4rem;}
+.sc-status{font-size:.65rem;font-family:var(--mono);padding:.2rem .6rem;border-radius:999px;background:rgba(74,180,90,.1);border:1px solid rgba(74,180,90,.2);color:var(--green);}
+.sc-status.warn{background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.3);color:var(--accent);}
+.sc-status.crit{background:rgba(224,82,82,.1);border-color:rgba(224,82,82,.3);color:var(--red);}
+.sc-val{font-family:'Syne',sans-serif;font-weight:800;font-size:2.2rem;line-height:1;color:var(--text);margin-bottom:.3rem;}
+.sc-val span{font-size:1rem;font-weight:400;color:var(--muted);}
+.sc-label{font-size:.78rem;color:var(--muted);margin-bottom:.9rem;}
+.sc-bar-bg{height:4px;background:rgba(255,255,255,.07);border-radius:999px;overflow:hidden;}
+.sc-bar{height:100%;border-radius:999px;transition:width 1s ease;}
+.sc-range{display:flex;justify-content:space-between;font-size:.65rem;color:var(--muted);font-family:var(--mono);margin-top:.4rem;}
+
+/* CHARTS */
+.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:1rem;}
+.tab-group{display:flex;gap:.4rem;}
+.tab{padding:.3rem .8rem;border-radius:6px;font-size:.72rem;cursor:pointer;font-family:var(--mono);background:transparent;border:1px solid var(--border);color:var(--muted);transition:all .15s;}
+.tab.active,.tab:hover{background:rgba(74,180,90,.12);color:var(--lime);border-color:rgba(74,180,90,.3);}
+canvas{width:100%!important;}
+.donut-wrap{position:relative;width:140px;height:140px;margin:0 auto 1rem;}
+.donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
+.donut-num{font-family:'Syne',sans-serif;font-weight:800;font-size:1.5rem;color:var(--text);line-height:1;}
+.donut-lbl{font-size:.65rem;color:var(--muted);font-family:var(--mono);}
+.legend{display:flex;flex-direction:column;gap:.5rem;}
+.leg-item{display:flex;align-items:center;gap:.6rem;font-size:.78rem;color:var(--muted);}
+.leg-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
+
+/* BOTTOM ROW */
+.bottom-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.irr-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;}
+.mode-toggle{display:flex;gap:.4rem;}
+.mode-btn{padding:.3rem .9rem;border-radius:6px;font-size:.72rem;cursor:pointer;font-family:var(--mono);border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s;}
+.mode-btn.active{background:rgba(90,180,224,.15);color:var(--blue);border-color:rgba(90,180,224,.3);}
+.pump-control{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.2rem;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--border);margin-bottom:1rem;}
+.pump-info h4{font-size:.9rem;font-weight:500;margin-bottom:.2rem;}
+.pump-info p{font-size:.75rem;color:var(--muted);font-family:var(--mono);}
+.toggle{width:44px;height:24px;border-radius:999px;cursor:pointer;position:relative;transition:background .3s;flex-shrink:0;}
+.toggle.on{background:var(--green);}
+.toggle.off{background:rgba(255,255,255,.1);}
+.toggle::after{content:'';position:absolute;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .3s;}
+.toggle.on::after{left:23px;}
+.toggle.off::after{left:3px;}
+.irr-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;}
+.irr-stat{text-align:center;padding:.9rem;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid var(--border);}
+.irr-stat-num{font-family:'Syne',sans-serif;font-weight:700;font-size:1.2rem;color:var(--lime);}
+.irr-stat-lbl{font-size:.65rem;color:var(--muted);font-family:var(--mono);margin-top:.2rem;}
+.threshold-row{display:flex;align-items:center;gap:.8rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);}
+.threshold-row label{color:var(--muted);font-family:var(--mono);font-size:.72rem;flex-shrink:0;}
+input[type=range]{flex:1;accent-color:var(--green);cursor:pointer;}
+.thresh-val{font-family:var(--mono);font-size:.78rem;color:var(--lime);width:36px;text-align:right;}
+.alerts-list{display:flex;flex-direction:column;gap:.6rem;max-height:280px;overflow-y:auto;}
+.alerts-list::-webkit-scrollbar{width:4px;}
+.alerts-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.alert-item{display:flex;gap:.9rem;align-items:flex-start;padding:.85rem 1rem;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.02);animation:slideIn .3s ease;}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+.alert-icon{font-size:1rem;flex-shrink:0;margin-top:.1rem;}
+.alert-body{flex:1;}
+.alert-title{font-size:.82rem;font-weight:500;margin-bottom:.2rem;}
+.alert-meta{font-size:.7rem;color:var(--muted);font-family:var(--mono);}
+.alert-item.info{border-left:3px solid var(--blue);}
+.alert-item.warn{border-left:3px solid var(--accent);}
+.alert-item.ok{border-left:3px solid var(--green);}
+.alert-item.crit{border-left:3px solid var(--red);}
+.clear-btn{font-size:.7rem;font-family:var(--mono);color:var(--muted);cursor:pointer;background:none;border:1px solid var(--border);padding:.25rem .7rem;border-radius:5px;transition:all .15s;}
+.clear-btn:hover{color:var(--red);border-color:var(--red);}
+
+/* ── ANALYTICS ── */
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;}
+.stat-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.4rem;text-align:center;}
+.stat-box-num{font-family:'Syne',sans-serif;font-weight:800;font-size:2rem;line-height:1;margin-bottom:.4rem;}
+.stat-box-lbl{font-size:.75rem;color:var(--muted);font-family:var(--mono);}
+.stat-box-sub{font-size:.7rem;color:var(--muted);margin-top:.3rem;}
+.analytics-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.heatmap{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin-top:.8rem;}
+.hm-cell{height:26px;border-radius:3px;background:rgba(74,180,90,.08);cursor:default;}
+.hm-labels{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin-top:.3rem;}
+.hm-lbl{font-size:.55rem;color:var(--muted);font-family:var(--mono);text-align:center;}
+.corr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:.8rem;}
+.corr-cell{padding:.6rem;border-radius:6px;text-align:center;}
+.corr-val{font-size:.85rem;font-weight:700;font-family:'Syne',sans-serif;}
+.corr-lbl{color:var(--muted);font-size:.58rem;font-family:var(--mono);margin-top:.2rem;}
+
+/* ── IRRIGATION PAGE ── */
+.irr-page-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.big-pump{display:flex;flex-direction:column;align-items:center;gap:1rem;padding:2rem;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid var(--border);}
+.pump-circle{width:100px;height:100px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;border:3px solid var(--border);transition:all .3s;cursor:pointer;user-select:none;}
+.pump-circle.running{border-color:var(--green);background:rgba(74,180,90,.12);animation:pulse-ring 1.5s infinite;}
+@keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(74,180,90,.4)}70%{box-shadow:0 0 0 12px rgba(74,180,90,0)}100%{box-shadow:0 0 0 0 rgba(74,180,90,0)}}
+.pump-label{font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;}
+.pump-status-text{font-size:.78rem;color:var(--muted);font-family:var(--mono);}
+.flow-bar{width:100%;height:8px;background:rgba(255,255,255,.05);border-radius:999px;overflow:hidden;}
+.flow-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--green),var(--lime));transition:width .5s;}
+.zone-grid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;}
+.zone-card{padding:1rem;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--border);display:flex;align-items:center;gap:.8rem;}
+.zone-icon{font-size:1.4rem;}
+.zone-info{flex:1;}
+.zone-info h4{font-size:.85rem;margin-bottom:.2rem;}
+.zone-info p{font-size:.7rem;color:var(--muted);font-family:var(--mono);}
+.zone-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.zone-dot.on{background:var(--green);animation:blink 1.5s infinite;}
+.zone-dot.off{background:rgba(255,255,255,.15);}
+.schedule-list{display:flex;flex-direction:column;gap:.6rem;}
+.sched-item{display:flex;align-items:center;gap:1rem;padding:.9rem 1.1rem;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--border);}
+.sched-time{font-family:var(--mono);font-size:.9rem;color:var(--lime);width:55px;flex-shrink:0;}
+.sched-info{flex:1;}
+.sched-info h4{font-size:.85rem;margin-bottom:.15rem;}
+.sched-info p{font-size:.72rem;color:var(--muted);font-family:var(--mono);}
+
+/* ── ALERTS PAGE ── */
+.alert-stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;}
+.ast{padding:1rem;border-radius:14px;border:1px solid var(--border);background:var(--card);text-align:center;}
+.ast-num{font-family:'Syne',sans-serif;font-weight:700;font-size:1.8rem;line-height:1;}
+.ast-lbl{font-size:.7rem;color:var(--muted);font-family:var(--mono);margin-top:.3rem;}
+.alert-filters{display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;}
+.af-btn{padding:.35rem .9rem;border-radius:6px;font-size:.72rem;cursor:pointer;font-family:var(--mono);border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s;}
+.af-btn.active{background:rgba(74,180,90,.12);color:var(--lime);border-color:rgba(74,180,90,.3);}
+.af-btn.fc.active{background:rgba(224,82,82,.1);color:var(--red);border-color:rgba(224,82,82,.3);}
+.af-btn.fw.active{background:rgba(245,166,35,.1);color:var(--accent);border-color:rgba(245,166,35,.3);}
+.af-btn.fo.active{background:rgba(74,180,90,.12);color:var(--green);border-color:rgba(74,180,90,.3);}
+.af-btn.fi.active{background:rgba(90,180,224,.1);color:var(--blue);border-color:rgba(90,180,224,.3);}
+.alerts-list-full{display:flex;flex-direction:column;gap:.6rem;max-height:440px;overflow-y:auto;}
+.alerts-list-full::-webkit-scrollbar{width:4px;}
+.alerts-list-full::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+/* ── SETTINGS ── */
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.settings-section-title{font-family:'Syne',sans-serif;font-weight:700;font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;padding:.4rem 0 .6rem;}
+.setting-group{display:flex;flex-direction:column;gap:.7rem;}
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.1rem;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--border);}
+.setting-info h4{font-size:.88rem;margin-bottom:.2rem;}
+.setting-info p{font-size:.72rem;color:var(--muted);font-family:var(--mono);}
+select{background:rgba(22,35,24,.9);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:.78rem;padding:.35rem .7rem;border-radius:6px;cursor:pointer;outline:none;}
+select:focus{border-color:var(--green);}
+input[type=number]{width:68px;background:rgba(22,35,24,.9);border:1px solid var(--border);color:var(--lime);font-family:var(--mono);font-size:.88rem;padding:.35rem .6rem;border-radius:6px;outline:none;text-align:center;}
+input[type=number]:focus{border-color:var(--green);}
+.sensor-thresh-grid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;}
+.thresh-card{padding:1rem;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--border);}
+.thresh-card h4{font-size:.82rem;margin-bottom:.7rem;}
+.thresh-inputs{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;}
+.thresh-inp-grp label{font-size:.62rem;color:var(--muted);font-family:var(--mono);display:block;margin-bottom:.3rem;}
+.thresh-inp-grp input{width:100%;}
+.swatches{display:flex;gap:.5rem;}
+.color-swatch{width:26px;height:26px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:all .15s;}
+.color-swatch.selected{border-color:var(--text);transform:scale(1.12);}
+.save-btn{background:var(--green);color:var(--bg);font-family:'Syne',sans-serif;font-weight:700;font-size:.88rem;border:none;padding:.8rem 2rem;border-radius:8px;cursor:pointer;transition:all .15s;width:100%;}
+.save-btn:hover{background:var(--lime);transform:translateY(-1px);}
+.sysinfo-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;}
+.sysinfo-cell{padding:.7rem;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid var(--border);font-size:.82rem;}
+.sysinfo-lbl{color:var(--muted);font-family:var(--mono);font-size:.62rem;margin-bottom:.3rem;}
+
+/* TOAST */
+.toast{position:fixed;bottom:2rem;right:2rem;background:var(--green);color:var(--bg);font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;padding:.8rem 1.5rem;border-radius:10px;z-index:999;transform:translateY(100px);opacity:0;transition:all .3s;}
+.toast.show{transform:translateY(0);opacity:1;}
+
+/* FOOTER */
+.dash-footer{padding:.8rem 2rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:.7rem;color:var(--muted);font-family:var(--mono);margin-top:auto;}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="brand">Green<span>Sense</span></div>
+  <div class="nav-item active" onclick="navTo('dashboard',this)"><span class="nav-icon">🌿</span> Dashboard</div>
+  <div class="nav-item" onclick="navTo('analytics',this)"><span class="nav-icon">📊</span> Analytics</div>
+  <div class="nav-item" onclick="navTo('irrigation',this)"><span class="nav-icon">💧</span> Irrigation</div>
+  <div class="nav-item" onclick="navTo('alerts',this)"><span class="nav-icon">🔔</span> Alerts</div>
+  <div class="nav-item" onclick="navTo('settings',this)"><span class="nav-icon">⚙️</span> Settings</div>
+  <div class="sidebar-footer">
+    <div class="status-line"><span class="status-dot"></span>ESP32 · Connected</div>
+    <div class="status-line">☁️ ThingSpeak · Syncing</div>
+    <div class="status-line">🔋 <span id="sb-battery" style="color:var(--lime);margin-left:.3rem">56h left</span></div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <h1 id="page-title">Plant Monitoring Dashboard</h1>
+    <p id="clock">--</p>
+  </div>
+  <div class="topbar-right">
+    <span class="badge" id="uptime-badge">Uptime: 0s</span>
+    <div class="alert-bell" onclick="navTo('alerts',document.querySelectorAll('.nav-item')[3])">🔔<span class="alert-count" id="alert-count">0</span></div>
+  </div>
+</div>
+
+<!-- ═══ PAGE: DASHBOARD ═══ -->
+<div class="page active" id="page-dashboard">
+  <div class="sensors-row">
+    <div class="sensor-card" style="--c:#4ab45a">
+      <div class="sc-top"><span class="sc-icon">🌡️</span><span class="sc-status" id="temp-status">NORMAL</span></div>
+      <div class="sc-val" id="temp-val">--<span>°C</span></div>
+      <div class="sc-label">Temperature · DHT22</div>
+      <div class="sc-bar-bg"><div class="sc-bar" id="temp-bar" style="width:0%;background:var(--green)"></div></div>
+      <div class="sc-range"><span>0°C</span><span>50°C</span></div>
+    </div>
+    <div class="sensor-card" style="--c:#5ab4e0">
+      <div class="sc-top"><span class="sc-icon">💧</span><span class="sc-status" id="hum-status">NORMAL</span></div>
+      <div class="sc-val" id="hum-val">--<span>%</span></div>
+      <div class="sc-label">Humidity · DHT22</div>
+      <div class="sc-bar-bg"><div class="sc-bar" id="hum-bar" style="width:0%;background:var(--blue)"></div></div>
+      <div class="sc-range"><span>0%</span><span>100%</span></div>
+    </div>
+    <div class="sensor-card" style="--c:#9de04a">
+      <div class="sc-top"><span class="sc-icon">🌱</span><span class="sc-status" id="soil-status">NORMAL</span></div>
+      <div class="sc-val" id="soil-val">--<span>%</span></div>
+      <div class="sc-label">Soil Moisture · Capacitive</div>
+      <div class="sc-bar-bg"><div class="sc-bar" id="soil-bar" style="width:0%;background:var(--lime)"></div></div>
+      <div class="sc-range"><span>0%</span><span>100%</span></div>
+    </div>
+    <div class="sensor-card" style="--c:#f5a623">
+      <div class="sc-top"><span class="sc-icon">🪣</span><span class="sc-status" id="water-status">NORMAL</span></div>
+      <div class="sc-val" id="water-val">--<span>%</span></div>
+      <div class="sc-label">Water Level · HC-SR04</div>
+      <div class="sc-bar-bg"><div class="sc-bar" id="water-bar" style="width:0%;background:var(--accent)"></div></div>
+      <div class="sc-range"><span>0%</span><span>100%</span></div>
+    </div>
+  </div>
+  <div class="charts-row">
+    <div class="panel">
+      <div class="panel-head">
+        <div><div class="panel-title">Sensor History</div><div class="panel-sub">Last 20 readings · 2s interval</div></div>
+        <div class="tab-group">
+          <div class="tab active" onclick="setChart('all',this)">All</div>
+          <div class="tab" onclick="setChart('temp',this)">Temp</div>
+          <div class="tab" onclick="setChart('hum',this)">Humidity</div>
+          <div class="tab" onclick="setChart('soil',this)">Soil</div>
+        </div>
+      </div>
+      <canvas id="lineChart" height="150"></canvas>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div><div class="panel-title">System Health</div><div class="panel-sub">Live status</div></div></div>
+      <div class="donut-wrap"><canvas id="donutChart"></canvas><div class="donut-center"><div class="donut-num" id="health-pct">--</div><div class="donut-lbl">HEALTH</div></div></div>
+      <div class="legend">
+        <div class="leg-item"><span class="leg-dot" style="background:var(--lime)"></span>Soil Moisture</div>
+        <div class="leg-item"><span class="leg-dot" style="background:var(--green)"></span>Temperature</div>
+        <div class="leg-item"><span class="leg-dot" style="background:var(--blue)"></span>Humidity</div>
+        <div class="leg-item"><span class="leg-dot" style="background:var(--accent)"></span>Water Level</div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-row">
+    <div class="panel">
+      <div class="irr-head">
+        <div><div class="panel-title">Irrigation Control</div><div class="panel-sub" id="irr-mode-label">Mode: Auto</div></div>
+        <div class="mode-toggle">
+          <button class="mode-btn active" onclick="setMode('auto',this)">Auto</button>
+          <button class="mode-btn" onclick="setMode('manual',this)">Manual</button>
+        </div>
+      </div>
+      <div class="pump-control">
+        <div class="pump-info"><h4>Water Pump · 5V Relay</h4><p id="pump-state-text">Idle — soil above threshold</p></div>
+        <div class="toggle off" id="pump-toggle" onclick="manualTogglePump()"></div>
+      </div>
+      <div class="irr-stats">
+        <div class="irr-stat"><div class="irr-stat-num" id="pump-cycles">0</div><div class="irr-stat-lbl">Pump Cycles</div></div>
+        <div class="irr-stat"><div class="irr-stat-num" id="water-saved">0.0L</div><div class="irr-stat-lbl">Est. Saved</div></div>
+        <div class="irr-stat"><div class="irr-stat-num" id="pump-runtime">0s</div><div class="irr-stat-lbl">Runtime</div></div>
+      </div>
+      <div class="threshold-row">
+        <label>THRESHOLD</label>
+        <input type="range" min="30" max="80" value="50" id="threshold-slider" oninput="updateThreshold(this.value)"/>
+        <span class="thresh-val" id="thresh-display">50%</span>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div><div class="panel-title">Alert Log</div><div class="panel-sub" id="alert-sub">All clear</div></div>
+        <button class="clear-btn" onclick="clearAlerts()">Clear</button>
+      </div>
+      <div class="alerts-list" id="alerts-list">
+        <div class="alert-item info"><span class="alert-icon">ℹ️</span><div class="alert-body"><div class="alert-title">System initialised</div><div class="alert-meta">GreenSense v1.0 · ESP32 online</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PAGE: ANALYTICS ═══ -->
+<div class="page" id="page-analytics">
+  <div class="stat-row">
+    <div class="stat-box"><div class="stat-box-num" style="color:var(--green)" id="an-avgtemp">--</div><div class="stat-box-lbl">Avg Temperature</div><div class="stat-box-sub">session mean</div></div>
+    <div class="stat-box"><div class="stat-box-num" style="color:var(--blue)" id="an-avghum">--</div><div class="stat-box-lbl">Avg Humidity</div><div class="stat-box-sub">session mean</div></div>
+    <div class="stat-box"><div class="stat-box-num" style="color:var(--lime)" id="an-avgsoil">--</div><div class="stat-box-lbl">Avg Soil Moisture</div><div class="stat-box-sub">session mean</div></div>
+    <div class="stat-box"><div class="stat-box-num" style="color:var(--accent)" id="an-avgwater">--</div><div class="stat-box-lbl">Avg Water Level</div><div class="stat-box-sub">session mean</div></div>
+  </div>
+  <div class="analytics-grid">
+    <div class="panel">
+      <div class="panel-head"><div><div class="panel-title">Temp vs Humidity Scatter</div><div class="panel-sub">Correlation plot</div></div></div>
+      <canvas id="scatterChart" height="180"></canvas>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div><div class="panel-title">Soil Moisture Trend</div><div class="panel-sub">With irrigation threshold</div></div></div>
+      <canvas id="soilTrendChart" height="180"></canvas>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><div><div class="panel-title">24-Hour Soil Moisture Heatmap</div><div class="panel-sub">Simulated daily cycle</div></div></div>
+    <div class="heatmap" id="heatmap"></div>
+    <div class="hm-labels" id="hm-labels"></div>
+  </div>
+  <div class="analytics-grid">
+    <div class="panel">
+      <div class="panel-head"><div><div class="panel-title">Min / Max Range</div><div class="panel-sub">This session</div></div></div>
+      <canvas id="rangeChart" height="160"></canvas>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div><div class="panel-title">Sensor Correlation Matrix</div><div class="panel-sub">Pearson coefficient</div></div></div>
+      <div class="corr-grid" id="corr-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PAGE: IRRIGATION ═══ -->
+<div class="page" id="page-irrigation">
+  <div class="irr-page-grid">
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">Pump Control</div><div class="panel-sub" id="irr2-mode">Mode: Auto</div></div>
+        <div class="big-pump">
+          <div class="pump-circle" id="big-pump-circle" onclick="manualTogglePump()">💧</div>
+          <div class="pump-label" id="big-pump-label">PUMP IDLE</div>
+          <div class="pump-status-text" id="big-pump-sub">Waiting for threshold trigger</div>
+          <div style="width:100%">
+            <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);font-family:var(--mono);margin-bottom:.4rem;"><span>Flow rate</span><span id="flow-pct">0%</span></div>
+            <div class="flow-bar"><div class="flow-fill" id="flow-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="mode-toggle" style="justify-content:center;margin-top:1rem;">
+          <button class="mode-btn active" id="irr-mode-auto" onclick="setMode('auto',this)">Auto</button>
+          <button class="mode-btn" id="irr-mode-manual" onclick="setMode('manual',this)">Manual</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">Session Statistics</div></div>
+        <div class="irr-stats">
+          <div class="irr-stat"><div class="irr-stat-num" id="irr2-cycles">0</div><div class="irr-stat-lbl">Cycles</div></div>
+          <div class="irr-stat"><div class="irr-stat-num" id="irr2-saved">0.0L</div><div class="irr-stat-lbl">Water Saved</div></div>
+          <div class="irr-stat"><div class="irr-stat-num" id="irr2-runtime">0s</div><div class="irr-stat-lbl">Total Runtime</div></div>
+        </div>
+        <div class="threshold-row">
+          <label>TRIGGER THRESHOLD</label>
+          <input type="range" min="30" max="80" value="50" id="threshold-slider2" oninput="updateThreshold(this.value)"/>
+          <span class="thresh-val" id="thresh-display2">50%</span>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">Irrigation Zones</div><div class="panel-sub">ESP32 relay channels</div></div>
+        <div class="zone-grid">
+          <div class="zone-card"><span class="zone-icon">🌿</span><div class="zone-info"><h4>Zone A — Beds</h4><p id="zone-a-txt">Monitoring</p></div><span class="zone-dot" id="zone-a-dot" style="background:rgba(255,255,255,.15)"></span></div>
+          <div class="zone-card"><span class="zone-icon">🌸</span><div class="zone-info"><h4>Zone B — Pots</h4><p>Standby</p></div><span class="zone-dot off"></span></div>
+          <div class="zone-card"><span class="zone-icon">🌲</span><div class="zone-info"><h4>Zone C — Trees</h4><p>Standby</p></div><span class="zone-dot off"></span></div>
+          <div class="zone-card"><span class="zone-icon">🥬</span><div class="zone-info"><h4>Zone D — Veggies</h4><p>Standby</p></div><span class="zone-dot off"></span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">Schedule</div><div class="panel-sub">Auto-trigger times</div></div>
+        <div class="schedule-list">
+          <div class="sched-item"><div class="sched-time">06:00</div><div class="sched-info"><h4>Morning Cycle</h4><p>All zones · 5 min · threshold 55%</p></div><div class="toggle on" onclick="this.className='toggle '+(this.classList.contains('on')?'off':'on')"></div></div>
+          <div class="sched-item"><div class="sched-time">12:30</div><div class="sched-info"><h4>Midday Check</h4><p>Zone A & D · 3 min · threshold 45%</p></div><div class="toggle on" onclick="this.className='toggle '+(this.classList.contains('on')?'off':'on')"></div></div>
+          <div class="sched-item"><div class="sched-time">18:00</div><div class="sched-info"><h4>Evening Cycle</h4><p>All zones · 4 min · threshold 50%</p></div><div class="toggle on" onclick="this.className='toggle '+(this.classList.contains('on')?'off':'on')"></div></div>
+          <div class="sched-item"><div class="sched-time">22:00</div><div class="sched-info"><h4>Night Drip</h4><p>Zone B & C · 2 min · threshold 40%</p></div><div class="toggle off" onclick="this.className='toggle '+(this.classList.contains('on')?'off':'on')"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PAGE: ALERTS ═══ -->
+<div class="page" id="page-alerts">
+  <div class="alert-stats-row">
+    <div class="ast"><div class="ast-num" style="color:var(--red)" id="ast-crit">0</div><div class="ast-lbl">Critical</div></div>
+    <div class="ast"><div class="ast-num" style="color:var(--accent)" id="ast-warn">0</div><div class="ast-lbl">Warnings</div></div>
+    <div class="ast"><div class="ast-num" style="color:var(--green)" id="ast-ok">0</div><div class="ast-lbl">Resolved</div></div>
+    <div class="ast"><div class="ast-num" style="color:var(--blue)" id="ast-info">0</div><div class="ast-lbl">Info</div></div>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <div><div class="panel-title">Event Log</div><div class="panel-sub" id="alerts-page-sub">Showing all</div></div>
+      <button class="clear-btn" onclick="clearAlerts()">Clear All</button>
+    </div>
+    <div class="alert-filters">
+      <button class="af-btn active" onclick="filterAlerts('all',this)">All</button>
+      <button class="af-btn fc" onclick="filterAlerts('crit',this)">🔴 Critical</button>
+      <button class="af-btn fw" onclick="filterAlerts('warn',this)">🟡 Warning</button>
+      <button class="af-btn fo" onclick="filterAlerts('ok',this)">🟢 Resolved</button>
+      <button class="af-btn fi" onclick="filterAlerts('info',this)">🔵 Info</button>
+    </div>
+    <div class="alerts-list-full" id="alerts-list-full"></div>
+  </div>
+</div>
+
+<!-- ═══ PAGE: SETTINGS ═══ -->
+<div class="page" id="page-settings">
+  <div class="settings-grid">
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+      <div class="panel">
+        <div class="settings-section-title">Sensor Thresholds</div>
+        <div class="sensor-thresh-grid">
+          <div class="thresh-card"><h4>🌡️ Temperature</h4><div class="thresh-inputs"><div class="thresh-inp-grp"><label>MIN °C</label><input type="number" value="15" id="set-temp-min"></div><div class="thresh-inp-grp"><label>MAX °C</label><input type="number" value="35" id="set-temp-max"></div></div></div>
+          <div class="thresh-card"><h4>💧 Humidity</h4><div class="thresh-inputs"><div class="thresh-inp-grp"><label>MIN %</label><input type="number" value="35" id="set-hum-min"></div><div class="thresh-inp-grp"><label>MAX %</label><input type="number" value="85" id="set-hum-max"></div></div></div>
+          <div class="thresh-card"><h4>🌱 Soil</h4><div class="thresh-inputs"><div class="thresh-inp-grp"><label>TRIGGER %</label><input type="number" value="50" id="set-soil-min"></div><div class="thresh-inp-grp"><label>TARGET %</label><input type="number" value="80" id="set-soil-max"></div></div></div>
+          <div class="thresh-card"><h4>🪣 Water</h4><div class="thresh-inputs"><div class="thresh-inp-grp"><label>MIN %</label><input type="number" value="20" id="set-water-min"></div><div class="thresh-inp-grp"><label>REFILL %</label><input type="number" value="15" id="set-water-max"></div></div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="settings-section-title">Device</div>
+        <div class="setting-group">
+          <div class="setting-row"><div class="setting-info"><h4>Sampling Interval</h4><p>ESP32 read frequency</p></div><select id="set-interval"><option>1s</option><option selected>2s</option><option>5s</option><option>10s</option><option>30s</option></select></div>
+          <div class="setting-row"><div class="setting-info"><h4>Cloud Sync</h4><p>ThingSpeak upload rate</p></div><select><option>Every read</option><option selected>Every 15s</option><option>Every 1min</option></select></div>
+          <div class="setting-row"><div class="setting-info"><h4>OLED Display</h4><p>Show on device screen</p></div><div class="toggle on" onclick="this.className='toggle '+(this.classList.contains('on')?'off':'on')"></div></div>
+          <div class="setting-row"><div class="setting-info"><h4>Buzzer Alerts</h4><p>Audible alarm on critical</p></div><div class="toggle on" onclick="this.className='toggle '+(this.classList.contains('on')?'off':'on')"></div></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+      <div class="panel">
+        <div class="settings-section-title">Notifications</div>
+        <div class="setting-group">
+          <div class="setting-row"><div class="setting-info"><h4>Email Alerts</h4><p>Send to registered address</p></div><div class="toggle on" onclick="this.className='toggle '+(this.classList.contains('on')?'off':'on')"></div></div>
+          <div class="setting-row"><div class="setting-info"><h4>SMS Alerts</h4><p>Critical events only</p></div><div class="toggle off" onclick="this.className='toggle '+(this.classList.contains('on')?'off':'on')"></div></div>
+          <div class="setting-row"><div class="setting-info"><h4>Alert Level</h4><p>Minimum to notify</p></div><select><option>All events</option><option selected>Warning+</option><option>Critical only</option></select></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="settings-section-title">Display</div>
+        <div class="setting-group">
+          <div class="setting-row"><div class="setting-info"><h4>Temperature Unit</h4><p>Celsius or Fahrenheit</p></div><select id="set-unit"><option value="C" selected>°C Celsius</option><option value="F">°F Fahrenheit</option></select></div>
+          <div class="setting-row"><div class="setting-info"><h4>Accent Color</h4><p>Dashboard highlight</p></div><div class="swatches"><div class="color-swatch selected" style="background:#9de04a" onclick="setAccent('#9de04a',this)"></div><div class="color-swatch" style="background:#5ab4e0" onclick="setAccent('#5ab4e0',this)"></div><div class="color-swatch" style="background:#f5a623" onclick="setAccent('#f5a623',this)"></div><div class="color-swatch" style="background:#a78bfa" onclick="setAccent('#a78bfa',this)"></div><div class="color-swatch" style="background:#e05252" onclick="setAccent('#e05252',this)"></div></div></div>
+          <div class="setting-row"><div class="setting-info"><h4>History Window</h4><p>Points on line chart</p></div><select id="set-hist"><option value="10">10 pts</option><option value="20" selected>20 pts</option><option value="50">50 pts</option></select></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="settings-section-title">System Info</div>
+        <div class="sysinfo-grid">
+          <div class="sysinfo-cell"><div class="sysinfo-lbl">FIRMWARE</div>GreenSense v1.0</div>
+          <div class="sysinfo-cell"><div class="sysinfo-lbl">MCU</div>ESP32 240MHz</div>
+          <div class="sysinfo-cell"><div class="sysinfo-lbl">CLOUD</div>ThingSpeak</div>
+          <div class="sysinfo-cell"><div class="sysinfo-lbl">SENSORS</div>DHT22 · HC-SR04</div>
+          <div class="sysinfo-cell"><div class="sysinfo-lbl">WIFI</div>Connected</div>
+          <div class="sysinfo-cell"><div class="sysinfo-lbl">UPTIME</div><span id="set-uptime">0s</span></div>
+        </div>
+      </div>
+      <button class="save-btn" onclick="saveSettings()">💾 Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<div class="dash-footer">
+  <span>GreenSense IoT · ESP32 · DHT22 · HC-SR04 · ThingSpeak Cloud</span>
+  <span id="footer-reads">Readings: 0</span>
+</div>
+</div><!-- /main -->
+</div><!-- /app -->
+
+<div class="toast" id="toast">✅ Settings saved!</div>
+
+<script>
+// ════════════════════════════════
+// STATE
+// ════════════════════════════════
+const S = {
+  temp:26, hum:65, soil:70, water:85,
+  pumpOn:false, pumpCycles:0, pumpRuntime:0,
+  mode:'auto', threshold:50,
+  waterSaved:0, totalReads:0, uptimeS:0, alertCount:0,
+  history:{labels:[],temp:[],hum:[],soil:[],water:[]},
+  allAlerts:[], alertFilter:'all',
+  aC:{crit:0,warn:0,ok:0,info:0}
+};
+
+// ════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════
+const TITLES = {dashboard:'Plant Monitoring Dashboard',analytics:'Sensor Analytics',irrigation:'Irrigation Control',alerts:'Alert Centre',settings:'System Settings'};
+function navTo(id, el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('page-title').textContent = TITLES[id];
+  if(id==='analytics') renderAnalytics();
+  if(id==='irrigation') syncIrrPage();
+  if(id==='alerts') renderAlertsPage();
+}
+
+// ════════════════════════════════
+// CHARTS — DASHBOARD
+// ════════════════════════════════
+const gc = (color,alpha) => color+'('+ (color.startsWith('rgba')?'':'')+alpha;
+const gridColor = 'rgba(74,180,90,.06)';
+const tickStyle = {color:'#6a9470',font:{size:10,family:'DM Mono'}};
+
+const lineChart = new Chart(document.getElementById('lineChart').getContext('2d'),{
+  type:'line',
+  data:{labels:[],datasets:[
+    {label:'Temp',data:[],borderColor:'#4ab45a',backgroundColor:'rgba(74,180,90,.07)',tension:.4,pointRadius:0,borderWidth:2},
+    {label:'Humidity',data:[],borderColor:'#5ab4e0',backgroundColor:'rgba(90,180,224,.07)',tension:.4,pointRadius:0,borderWidth:2},
+    {label:'Soil',data:[],borderColor:'#9de04a',backgroundColor:'rgba(157,224,74,.07)',tension:.4,pointRadius:0,borderWidth:2},
+    {label:'Water',data:[],borderColor:'#f5a623',backgroundColor:'rgba(245,166,35,.07)',tension:.4,pointRadius:0,borderWidth:2}
+  ]},
+  options:{responsive:true,animation:{duration:400},interaction:{mode:'index',intersect:false},
+    plugins:{legend:{labels:{color:'#6a9470',font:{size:11,family:'DM Mono'},boxWidth:10,padding:12}}},
+    scales:{x:{ticks:{...tickStyle,maxTicksLimit:8},grid:{color:gridColor}},y:{ticks:tickStyle,grid:{color:gridColor},min:0,max:100}}}
+});
+
+const donutChart = new Chart(document.getElementById('donutChart').getContext('2d'),{
+  type:'doughnut',
+  data:{datasets:[{data:[25,25,25,25],backgroundColor:['#9de04a','#4ab45a','#5ab4e0','#f5a623'],borderWidth:0,hoverOffset:4}]},
+  options:{cutout:'72%',animation:{duration:600},plugins:{legend:{display:false},tooltip:{enabled:false}}}
+});
+
+let activeTab='all';
+function setChart(k,el){
+  activeTab=k;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active'); renderLine();
+}
+function renderLine(){
+  const h=S.history; lineChart.data.labels=[...h.labels];
+  const a=activeTab==='all';
+  lineChart.data.datasets[0].data=(a||activeTab==='temp')?[...h.temp]:[];
+  lineChart.data.datasets[1].data=(a||activeTab==='hum')?[...h.hum]:[];
+  lineChart.data.datasets[2].data=(a||activeTab==='soil')?[...h.soil]:[];
+  lineChart.data.datasets[3].data=(a||activeTab==='water')?[...h.water]:[];
+  lineChart.update('none');
+}
+
+// ════════════════════════════════
+// CHARTS — ANALYTICS (lazy)
+// ════════════════════════════════
+let scatterChart=null, soilTrendChart=null, rangeChart=null;
+
+function renderAnalytics(){
+  const h=S.history;
+  if(!h.temp.length) return;
+  const avg=arr=>arr.length?(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1):'--';
+  document.getElementById('an-avgtemp').textContent=avg(h.temp)+'°C';
+  document.getElementById('an-avghum').textContent=avg(h.hum)+'%';
+  document.getElementById('an-avgsoil').textContent=avg(h.soil)+'%';
+  document.getElementById('an-avgwater').textContent=avg(h.water)+'%';
+
+  // Scatter
+  const sd=h.temp.map((t,i)=>({x:+t,y:+h.hum[i]}));
+  if(scatterChart) scatterChart.destroy();
+  scatterChart=new Chart(document.getElementById('scatterChart').getContext('2d'),{
+    type:'scatter',data:{datasets:[{label:'Temp vs Humidity',data:sd,backgroundColor:'rgba(74,180,90,.5)',borderColor:'#4ab45a',pointRadius:5}]},
+    options:{responsive:true,plugins:{legend:{display:false}},
+      scales:{x:{title:{display:true,text:'Temperature (°C)',color:'#6a9470',font:{family:'DM Mono',size:10}},ticks:tickStyle,grid:{color:gridColor}},
+              y:{title:{display:true,text:'Humidity (%)',color:'#6a9470',font:{family:'DM Mono',size:10}},ticks:tickStyle,grid:{color:gridColor}}}}
+  });
+
+  // Soil trend
+  if(soilTrendChart) soilTrendChart.destroy();
+  soilTrendChart=new Chart(document.getElementById('soilTrendChart').getContext('2d'),{
+    type:'line',data:{labels:[...h.labels],datasets:[
+      {label:'Soil %',data:[...h.soil],borderColor:'#9de04a',backgroundColor:'rgba(157,224,74,.1)',tension:.4,pointRadius:0,borderWidth:2,fill:true},
+      {label:'Threshold',data:h.soil.map(()=>S.threshold),borderColor:'rgba(245,166,35,.5)',borderDash:[4,4],pointRadius:0,borderWidth:1}
+    ]},
+    options:{responsive:true,plugins:{legend:{labels:{color:'#6a9470',font:{size:10,family:'DM Mono'},boxWidth:8}}},
+      scales:{x:{ticks:{...tickStyle,maxTicksLimit:6},grid:{color:gridColor}},y:{min:0,max:100,ticks:tickStyle,grid:{color:gridColor}}}}
+  });
+
+  // Heatmap
+  const hm=document.getElementById('heatmap'), hl=document.getElementById('hm-labels');
+  hm.innerHTML=''; hl.innerHTML='';
+  const hours=Array.from({length:24},(_,i)=>String(i).padStart(2,'0'));
+  const hmv=hours.map((_,i)=>Math.round(55+Math.sin(i/3)*15+(Math.random()-.5)*8));
+  const hmMin=Math.min(...hmv),hmMax=Math.max(...hmv);
+  hours.forEach((hr,i)=>{
+    const p=(hmv[i]-hmMin)/(hmMax-hmMin);
+    const c=document.createElement('div'); c.className='hm-cell';
+    c.style.background=`rgba(157,224,74,${.05+p*.7})`; c.title=`${hr}:00 → ${hmv[i]}%`;
+    hm.appendChild(c);
+    const l=document.createElement('div'); l.className='hm-lbl'; l.textContent=hr; hl.appendChild(l);
+  });
+
+  // Range
+  const sens=[{l:'Temp',min:Math.min(...h.temp),max:Math.max(...h.temp),c:'#4ab45a'},{l:'Hum',min:Math.min(...h.hum),max:Math.max(...h.hum),c:'#5ab4e0'},{l:'Soil',min:Math.min(...h.soil),max:Math.max(...h.soil),c:'#9de04a'},{l:'Water',min:Math.min(...h.water),max:Math.max(...h.water),c:'#f5a623'}];
+  if(rangeChart) rangeChart.destroy();
+  rangeChart=new Chart(document.getElementById('rangeChart').getContext('2d'),{
+    type:'bar',data:{labels:sens.map(s=>s.l),datasets:[
+      {label:'Min',data:sens.map(s=>s.min.toFixed(1)),backgroundColor:'rgba(255,255,255,.07)',borderRadius:4},
+      {label:'Max',data:sens.map(s=>s.max.toFixed(1)),backgroundColor:sens.map(s=>s.c+'bb'),borderRadius:4}
+    ]},
+    options:{responsive:true,plugins:{legend:{labels:{color:'#6a9470',font:{size:10,family:'DM Mono'},boxWidth:8}}},
+      scales:{x:{ticks:tickStyle,grid:{color:gridColor}},y:{ticks:tickStyle,grid:{color:gridColor}}}}
+  });
+
+  // Correlation
+  const cg=document.getElementById('corr-grid'); cg.innerHTML='';
+  const sl=['Temp','Hum','Soil','Water'],dl=[h.temp,h.hum,h.soil,h.water],cl=['#4ab45a','#5ab4e0','#9de04a','#f5a623'];
+  sl.forEach((r,ri)=>sl.forEach((c,ci)=>{
+    const v=ri===ci?1:calcCorr(dl[ri],dl[ci]);
+    const d=document.createElement('div'); d.className='corr-cell';
+    d.style.background=`rgba(${ri===ci?'157,224,74':'74,180,90'},${ri===ci?.2:Math.abs(v)*.2})`;
+    d.innerHTML=`<div class="corr-val" style="color:${cl[ri]}">${ri===ci?'1.00':v.toFixed(2)}</div><div class="corr-lbl">${r}×${c}</div>`;
+    cg.appendChild(d);
+  }));
+}
+
+function calcCorr(a,b){
+  if(!a.length||a.length!==b.length) return 0;
+  const n=a.length,ma=a.reduce((s,v)=>s+v,0)/n,mb=b.reduce((s,v)=>s+v,0)/n;
+  const num=a.reduce((s,v,i)=>s+(v-ma)*(b[i]-mb),0);
+  const da=Math.sqrt(a.reduce((s,v)=>s+(v-ma)**2,0)),db=Math.sqrt(b.reduce((s,v)=>s+(v-mb)**2,0));
+  return da&&db?+(num/(da*db)).toFixed(2):0;
+}
+
+// ════════════════════════════════
+// SIMULATION
+// ════════════════════════════════
+function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
+
+function simulate(){
+  S.temp  = clamp(S.temp  + (Math.random()-.5)*.6, 18, 38);
+  S.hum   = clamp(S.hum   + (Math.random()-.5)*1.2, 30, 95);
+  S.water = clamp(S.water + (Math.random()-.49)*.4, 10, 100);
+  S.soil  = S.pumpOn
+    ? clamp(S.soil + .6 + Math.random()*.4, 0, 100)
+    : clamp(S.soil - .15 - Math.random()*.2, 0, 100);
+
+  if(S.mode==='auto'){
+    const was=S.pumpOn; S.pumpOn=S.soil<S.threshold;
+    if(!was&&S.pumpOn){S.pumpCycles++;addAlert('warn','💧 Pump activated','Soil below threshold — irrigating');}
+    if(was&&!S.pumpOn){addAlert('ok','✅ Pump stopped','Soil reached target moisture');}
+  }
+  if(S.pumpOn){S.pumpRuntime++;S.waterSaved+=0.003;}
+
+  checkThresh('temp',S.temp,15,35,'🌡️ Temperature');
+  checkThresh('hum',S.hum,35,85,'💧 Humidity');
+  checkThresh('water',S.water,20,null,'🪣 Water Level');
+
+  S.totalReads++;
+  updateUI();
+  pushHistory();
+  if(document.getElementById('page-irrigation').classList.contains('active')) syncIrrPage();
+}
+
+const lA={};
+function checkThresh(k,v,lo,hi,lbl){
+  const bad=(lo&&v<lo)||(hi&&v>hi);
+  if(bad&&!lA[k]){addAlert('crit',`⚠️ ${lbl} alert!`,`Value: ${v.toFixed(1)} — out of safe range`);lA[k]=true;}
+  else if(!bad){lA[k]=false;}
+}
+
+// ════════════════════════════════
+// UI UPDATE
+// ════════════════════════════════
+function updateUI(){
+  setCard('temp',S.temp,'°C',S.temp,0,50,15,35);
+  setCard('hum',S.hum,'%',S.hum,0,100,35,85);
+  setCard('soil',S.soil,'%',S.soil,0,100,S.threshold,100);
+  setCard('water',S.water,'%',S.water,0,100,20,100);
+
+  const tog=document.getElementById('pump-toggle');
+  if(tog) tog.className='toggle '+(S.pumpOn?'on':'off');
+  el('pump-state-text',S.pumpOn?'🔵 Running — irrigating now':'Idle — soil above threshold');
+  el('pump-cycles',S.pumpCycles);
+  el('water-saved',S.waterSaved.toFixed(1)+'L');
+  el('pump-runtime',S.pumpRuntime+'s');
+  el('irr-mode-label','Mode: '+cap(S.mode));
+
+  const ss=ir(S.soil,S.threshold,100)?100:40,ts=ir(S.temp,15,35)?100:40,hs=ir(S.hum,35,85)?100:40,ws=ir(S.water,20,100)?100:40;
+  donutChart.data.datasets[0].data=[ss,ts,hs,ws];
+  donutChart.update('none');
+  el('health-pct',Math.round((ss+ts+hs+ws)/4)+'%');
+  el('footer-reads','Readings: '+S.totalReads);
+}
+
+function el(id,val){const e=document.getElementById(id);if(e)e.textContent=val;}
+function ir(v,lo,hi){return v>=lo&&v<=hi;}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+
+function setCard(id,val,unit,raw,min,max,wLo,wHi){
+  const ve=document.getElementById(id+'-val');
+  if(ve) ve.innerHTML=val.toFixed(1)+'<span>'+unit+'</span>';
+  const be=document.getElementById(id+'-bar');
+  if(be) be.style.width=((raw-min)/(max-min)*100)+'%';
+  const se=document.getElementById(id+'-status');
+  if(!se) return;
+  if(raw<wLo||(wHi&&raw>wHi)){se.textContent='ALERT';se.className='sc-status crit';}
+  else if(raw<wLo*1.12||(wHi&&raw>wHi*.92)){se.textContent='WARN';se.className='sc-status warn';}
+  else{se.textContent='NORMAL';se.className='sc-status';}
+}
+
+// ════════════════════════════════
+// HISTORY
+// ════════════════════════════════
+function pushHistory(){
+  const now=new Date(),lbl=now.toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const h=S.history,MAX=+document.getElementById('set-hist').value||20;
+  h.labels.push(lbl);h.temp.push(+S.temp.toFixed(1));h.hum.push(+S.hum.toFixed(1));
+  h.soil.push(+S.soil.toFixed(1));h.water.push(+S.water.toFixed(1));
+  if(h.labels.length>MAX){h.labels.shift();h.temp.shift();h.hum.shift();h.soil.shift();h.water.shift();}
+  renderLine();
+}
+
+// ════════════════════════════════
+// ALERTS
+// ════════════════════════════════
+function addAlert(type,title,meta){
+  S.alertCount++; S.aC[type]=(S.aC[type]||0)+1;
+  el('alert-count',S.alertCount>9?'9+':S.alertCount);
+  const now=new Date().toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  S.allAlerts.unshift({type,title,meta,time:now});
+  if(S.allAlerts.length>60) S.allAlerts.pop();
+
+  const list=document.getElementById('alerts-list');
+  if(list){
+    const d=document.createElement('div'); d.className='alert-item '+type;
+    d.innerHTML=`<span class="alert-icon">${title.split(' ')[0]}</span><div class="alert-body"><div class="alert-title">${title.replace(/^\S+\s/,'')}</div><div class="alert-meta">${meta} · ${now}</div></div>`;
+    list.prepend(d);
+    while(list.children.length>12) list.removeChild(list.lastChild);
+  }
+  el('alert-sub',S.alertCount+' event'+(S.alertCount!==1?'s':''));
+  if(document.getElementById('page-alerts').classList.contains('active')) renderAlertsPage();
+}
+
+function clearAlerts(){
+  document.getElementById('alerts-list').innerHTML='';
+  S.alertCount=0; S.allAlerts=[]; Object.keys(S.aC).forEach(k=>S.aC[k]=0);
+  el('alert-count','0'); el('alert-sub','All clear'); renderAlertsPage();
+}
+
+function renderAlertsPage(){
+  ['crit','warn','ok','info'].forEach(t=>el('ast-'+t,S.aC[t]||0));
+  const full=document.getElementById('alerts-list-full');
+  if(!full) return;
+  full.innerHTML='';
+  const f=S.alertFilter==='all'?S.allAlerts:S.allAlerts.filter(a=>a.type===S.alertFilter);
+  el('alerts-page-sub',`Showing ${f.length} of ${S.allAlerts.length} events`);
+  if(!f.length){full.innerHTML='<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.82rem;font-family:var(--mono)">No events to display</div>';return;}
+  f.forEach(a=>{
+    const d=document.createElement('div'); d.className='alert-item '+a.type;
+    d.innerHTML=`<span class="alert-icon">${a.title.split(' ')[0]}</span><div class="alert-body"><div class="alert-title">${a.title.replace(/^\S+\s/,'')}</div><div class="alert-meta">${a.meta} · ${a.time}</div></div>`;
+    full.appendChild(d);
+  });
+}
+
+function filterAlerts(type,elBtn){
+  S.alertFilter=type;
+  document.querySelectorAll('.af-btn').forEach(b=>b.classList.remove('active'));
+  elBtn.classList.add('active'); renderAlertsPage();
+}
+
+// ════════════════════════════════
+// IRRIGATION
+// ════════════════════════════════
+function setMode(m, btn){
+  S.mode=m;
+  // sync all mode buttons everywhere
+  document.querySelectorAll('.mode-btn').forEach(b=>{
+    b.classList.toggle('active', b.textContent.toLowerCase()===m);
+  });
+  addAlert('info',m==='manual'?'🔧 Manual mode active':'🤖 Auto mode active',m==='manual'?'Pump under manual control':'Pump auto-triggers at threshold');
+  syncIrrPage();
+}
+
+function manualTogglePump(){
+  if(S.mode!=='manual') return;
+  S.pumpOn=!S.pumpOn;
+  if(S.pumpOn){S.pumpCycles++;addAlert('warn','💧 Pump ON','Manual override — irrigating');}
+  else{addAlert('ok','🛑 Pump OFF','Manual override stopped');}
+  updateUI(); syncIrrPage();
+}
+
+function updateThreshold(v){
+  S.threshold=+v;
+  ['thresh-display','thresh-display2'].forEach(id=>el(id,v+'%'));
+  document.getElementById('threshold-slider').value=v;
+  const s2=document.getElementById('threshold-slider2'); if(s2) s2.value=v;
+}
+
+function syncIrrPage(){
+  const circ=document.getElementById('big-pump-circle');
+  if(circ) circ.className='pump-circle'+(S.pumpOn?' running':'');
+  el('big-pump-label',S.pumpOn?'PUMP RUNNING':'PUMP IDLE');
+  el('big-pump-sub',S.pumpOn?'Irrigating Zone A — auto triggered':'Waiting for threshold trigger');
+  const flow=S.pumpOn?(62+Math.random()*20):0;
+  const ff=document.getElementById('flow-fill'); if(ff) ff.style.width=flow+'%';
+  el('flow-pct',S.pumpOn?flow.toFixed(0)+'%':'0%');
+  const zd=document.getElementById('zone-a-dot');
+  if(zd){zd.className='zone-dot '+(S.pumpOn?'on':'off');zd.style.background=S.pumpOn?'var(--green)':'rgba(255,255,255,.15)';}
+  el('zone-a-txt',S.pumpOn?'🔵 Active':'Monitoring');
+  el('irr2-mode','Mode: '+cap(S.mode));
+  el('irr2-cycles',S.pumpCycles);
+  el('irr2-saved',S.waterSaved.toFixed(1)+'L');
+  el('irr2-runtime',S.pumpRuntime+'s');
+}
+
+// ════════════════════════════════
+// SETTINGS
+// ════════════════════════════════
+function setAccent(color,btn){
+  document.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.documentElement.style.setProperty('--lime',color);
+  addAlert('info','🎨 Theme updated','Accent color changed');
+}
+
+function saveSettings(){
+  const toast=document.getElementById('toast');
+  toast.classList.add('show');
+  setTimeout(()=>toast.classList.remove('show'),2200);
+  addAlert('info','⚙️ Settings saved','Configuration applied to ESP32');
+}
+
+// ════════════════════════════════
+// CLOCK & UPTIME
+// ════════════════════════════════
+function updateClock(){
+  const now=new Date();
+  el('clock',now.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'})+' · '+now.toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+}
+function updateUptime(){
+  S.uptimeS++;
+  const h=Math.floor(S.uptimeS/3600),m=Math.floor((S.uptimeS%3600)/60),s=S.uptimeS%60;
+  const str=(h?h+'h ':'')+((h||m)?m+'m ':'')+s+'s';
+  el('uptime-badge','Uptime: '+str);
+  el('set-uptime',str);
+  el('sb-battery',Math.max(0,56-Math.floor(S.uptimeS/120))+'h left');
+}
+
+// ════════════════════════════════
+// BOOT
+// ════════════════════════════════
+simulate();
+setInterval(simulate, 2000);
+setInterval(updateClock, 1000);
+setInterval(updateUptime, 1000);
+updateClock();
+</script>
+</body>
+</html>
